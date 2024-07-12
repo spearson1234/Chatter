@@ -37,14 +37,14 @@ let isAuthorized = false;
 let isAdmin = false;
 
 const restrictedUsernames = {
-  'ceo': { pin: '2009', logo: 'Protection.png' },
+  'ceo': { pin: '2009', logo: '6830335.png' },
   'founder': '2009',
   'co-founder': '2009'
 };
 
 function createCEOLogo() {
   const ceoLogo = document.createElement('img');
-  ceoLogo.src = 'Protection.png';
+  ceoLogo.src = '6830335.png';
   ceoLogo.alt = 'CEO';
   ceoLogo.classList.add('ceo-logo');
   ceoLogo.style.width = '20px';
@@ -88,8 +88,8 @@ messagesRef.on('child_added', (snapshot) => {
       usernameSpan.appendChild(adminIcon);
     }
 
-    if (message.username.toLowerCase() === 'ceo' && !usernameSpan.nextElementSibling?.classList.contains('ceo-logo')) {
-      usernameSpan.insertAdjacentElement('afterend', createCEOLogo());
+    if (message.username.toLowerCase() === 'ceo' && !usernameSpan.querySelector('.ceo-logo')) {
+      usernameSpan.appendChild(createCEOLogo());
     }
   });
 
@@ -262,3 +262,4 @@ groupDescriptionRef.on('value', (snapshot) => {
   const description = snapshot.val();
   groupDescription.value = description || '';
 });
+
