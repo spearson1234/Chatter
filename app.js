@@ -39,23 +39,33 @@ let isAdmin = false;
 const restrictedUsernames = {
   'ceo': { pin: '2009', logo: '6830335.png' },
   'founder': '2009',
-  'co-founder': '2009'
+  'co-founder': '2009',
+ 'dan': { pin: '5623', logo: 'Mod.png' }
 };
 
-function createCEOLogo() {
-  const ceoLogo = document.createElement('img');
-  ceoLogo.src = '6830335.png';
-  ceoLogo.alt = 'CEO';
-  ceoLogo.classList.add('ceo-logo');
-  ceoLogo.style.width = '20px';
-  ceoLogo.style.height = '20px';
-  ceoLogo.style.marginLeft = '5px';
-  ceoLogo.style.verticalAlign = 'middle';
-  ceoLogo.title = 'Official CEO';
-  ceoLogo.addEventListener('click', () => {
-    alert('Official CEO');
+function createUserLogo(username) {
+  const userInfo = restrictedUsernames[username.toLowerCase()];
+  if (!userInfo || !userInfo.logo) return null;
+
+  const logo = document.createElement('img');
+  logo.src = userInfo.logo;
+  logo.alt = username;
+  logo.classList.add('user-logo');
+  logo.style.width = '20px';
+  logo.style.height = '20px';
+  logo.style.marginLeft = '5px';
+  logo.style.verticalAlign = 'middle';
+  
+  if (username.toLowerCase() === 'ceo') {
+    logo.title = 'Official CEO';
+  } else {
+    logo.title = 'Official Mod';
+  }
+
+  logo.addEventListener('click', () => {
+    alert(logo.title);
   });
-  return ceoLogo;
+  return logo;
 }
 
 messagesRef.on('child_added', (snapshot) => {
@@ -88,8 +98,10 @@ messagesRef.on('child_added', (snapshot) => {
       usernameSpan.appendChild(adminIcon);
     }
 
-    if (message.username.toLowerCase() === 'ceo' && !usernameSpan.querySelector('.ceo-logo')) {
-      usernameSpan.appendChild(createCEOLogo());
+    if (restrictedUsernames[message.username.toLowerCase()] && 
+        !usernameSpan.nextElementSibling?.classList.contains('user-logo')) {
+      const logo = createUserLogo(message.username);
+      if (logo) usernameSpan.insertAdjacentElement('afterend', logo);
     }
   });
 
@@ -262,4 +274,3 @@ groupDescriptionRef.on('value', (snapshot) => {
   const description = snapshot.val();
   groupDescription.value = description || '';
 });
-
