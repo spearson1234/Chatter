@@ -44,7 +44,7 @@ const restrictedUsernames = {
 
 function createCEOLogo() {
   const ceoLogo = document.createElement('img');
-  ceoLogo.src = 'https://chat-34ed7.web.app/Protection.png';
+  ceoLogo.src = 'https://firebasestorage.googleapis.com/v0/b/chat-34ed7.appspot.com/o/Protection.png?alt=media';
   ceoLogo.alt = 'CEO';
   ceoLogo.classList.add('ceo-logo');
   ceoLogo.style.width = '20px';
