@@ -44,7 +44,7 @@ const restrictedUsernames = {
 
 function createCEOLogo() {
   const ceoLogo = document.createElement('img');
-  ceoLogo.src = 'https://firebasestorage.googleapis.com/v0/b/chat-34ed7.appspot.com/o/Protection.png?alt=media';
+  ceoLogo.src = 'Protection.png';
   ceoLogo.alt = 'CEO';
   ceoLogo.classList.add('ceo-logo');
   ceoLogo.style.width = '20px';
@@ -88,8 +88,8 @@ messagesRef.on('child_added', (snapshot) => {
       usernameSpan.appendChild(adminIcon);
     }
 
-    if (message.username.toLowerCase() === 'ceo' && !usernameSpan.querySelector('.ceo-logo')) {
-      usernameSpan.appendChild(createCEOLogo());
+    if (message.username.toLowerCase() === 'ceo' && !usernameSpan.nextElementSibling?.classList.contains('ceo-logo')) {
+      usernameSpan.insertAdjacentElement('afterend', createCEOLogo());
     }
   });
 
@@ -262,4 +262,3 @@ groupDescriptionRef.on('value', (snapshot) => {
   const description = snapshot.val();
   groupDescription.value = description || '';
 });
-
