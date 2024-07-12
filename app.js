@@ -37,10 +37,10 @@ let isAuthorized = false;
 let isAdmin = false;
 
 const restrictedUsernames = {
-  'ceo': { pin: '2009', logo: '6830335.png' },
+  'ceo': { pin: '2009', logo: 'Ceo.png' },
   'founder': '2009',
   'co-founder': '2009',
- 'dan': { pin: '5623', logo: 'Mod.png' }
+  'dan': { pin: '5623', logo: 'Mod.png' }
 };
 
 function createUserLogo(username) {
@@ -77,6 +77,14 @@ messagesRef.on('child_added', (snapshot) => {
   usernameSpan.classList.add('username');
   usernameSpan.textContent = `${message.username}`;
 
+  const userLogoSpan = document.createElement('span');
+  userLogoSpan.classList.add('user-logo-container');
+
+  if (restrictedUsernames[message.username.toLowerCase()]) {
+    const logo = createUserLogo(message.username);
+    if (logo) userLogoSpan.appendChild(logo);
+  }
+
   const onlineStatusSpan = document.createElement('span');
   onlineStatusSpan.classList.add('online-status');
 
@@ -97,18 +105,17 @@ messagesRef.on('child_added', (snapshot) => {
       adminIcon.classList.add('admin-icon');
       usernameSpan.appendChild(adminIcon);
     }
-
-    if (restrictedUsernames[message.username.toLowerCase()] && 
-        !usernameSpan.nextElementSibling?.classList.contains('user-logo')) {
-      const logo = createUserLogo(message.username);
-      if (logo) usernameSpan.insertAdjacentElement('afterend', logo);
-    }
   });
 
   const messageTextSpan = document.createElement('span');
-  messageTextSpan.textContent = `: ${message.text}`;
+  if (message.pingEveryone) {
+    messageTextSpan.innerHTML = `: ${message.text.replace('@everyone', '<strong>@everyone</strong>')}`;
+  } else {
+    messageTextSpan.textContent = `: ${message.text}`;
+  }
 
   messageElement.appendChild(usernameSpan);
+  messageElement.appendChild(userLogoSpan);
   messageElement.appendChild(onlineStatusSpan);
   messageElement.appendChild(messageTextSpan);
 
@@ -149,11 +156,41 @@ function sendMessageHandler() {
 }
 
 function sendMessage(text, username) {
-  messagesRef.push({ text: text, username: username });
+  const hasBadge = restrictedUsernames[username.toLowerCase()];
+  const containsEveryone = text.includes('@everyone');
+
+  if (containsEveryone && !hasBadge) {
+    alert('Only users with a badge can use @everyone.');
+    return;
+  }
+
+  const message = {
+    text: text,
+    username: username,
+    timestamp: firebase.database.ServerValue.TIMESTAMP,
+    pingEveryone: containsEveryone && hasBadge
+  };
+
+  messagesRef.push(message);
   messageInput.value = '';
   isTyping = false;
   typingAlert.textContent = '';
   updateOnlineStatus(username, true);
+
+  if (message.pingEveryone) {
+    notifyEveryone(username);
+  }
+}
+
+function notifyEveryone(senderUsername) {
+  usersRef.once('value', (snapshot) => {
+    snapshot.forEach((childSnapshot) => {
+      const userId = childSnapshot.key;
+      if (userId !== senderUsername) {
+        console.log(`Notifying user ${userId} of @everyone ping from ${senderUsername}`);
+      }
+    });
+  });
 }
 
 messageInput.addEventListener('input', () => {
