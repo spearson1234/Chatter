@@ -44,7 +44,7 @@ const restrictedUsernames = {
 
 function createCEOLogo() {
   const ceoLogo = document.createElement('img');
-  ceoLogo.src = 'Protection.png';
+  ceoLogo.src = 'https://firebasestorage.googleapis.com/v0/b/chat-34ed7.appspot.com/o/Protection.png?alt=media';
   ceoLogo.alt = 'CEO';
   ceoLogo.classList.add('ceo-logo');
   ceoLogo.style.width = '20px';
@@ -52,6 +52,10 @@ function createCEOLogo() {
   ceoLogo.style.marginLeft = '5px';
   ceoLogo.style.verticalAlign = 'middle';
   ceoLogo.title = 'Official CEO';
+  ceoLogo.onerror = function() {
+    this.onerror = null;
+    this.src = 'Protection.png';
+  };
   ceoLogo.addEventListener('click', () => {
     alert('Official CEO');
   });
