@@ -44,7 +44,7 @@ const restrictedUsernames = {
 
 function createCEOLogo() {
   const ceoLogo = document.createElement('img');
-  ceoLogo.src = 'Protection.png';
+  ceoLogo.src = 'https://chat-34ed7.web.app/Protection.png';
   ceoLogo.alt = 'CEO';
   ceoLogo.classList.add('ceo-logo');
   ceoLogo.style.width = '20px';
@@ -52,10 +52,6 @@ function createCEOLogo() {
   ceoLogo.style.marginLeft = '5px';
   ceoLogo.style.verticalAlign = 'middle';
   ceoLogo.title = 'Official CEO';
-  ceoLogo.onerror = function() {
-    this.onerror = null;
-    this.src = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns%3D"http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg" width="20" height="20"%3E%3Ctext x="0" y="15" fill="gold"%3E👑%3C%2Ftext%3E%3C%2Fsvg%3E';
-  };
   ceoLogo.addEventListener('click', () => {
     alert('Official CEO');
   });
