@@ -12,6 +12,7 @@ firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const messagesRef = database.ref('messages');
 const usersRef = database.ref('users');
+const groupDescriptionRef = database.ref('groupDescription');
 
 const chatMessages = document.getElementById('chatMessages');
 const messageInput = document.getElementById('messageInput');
@@ -22,18 +23,40 @@ const customThemeButton = document.getElementById('customThemeButton');
 const themeSelectionPage = document.getElementById('themeSelectionPage');
 const closeThemeButton = document.getElementById('closeThemeButton');
 const themeButtons = document.querySelectorAll('.theme-button');
+const settingsButton = document.getElementById('settingsButton');
+const settingsPanel = document.getElementById('settingsPanel');
+const groupDescription = document.getElementById('groupDescription');
+const claimAdminButton = document.getElementById('claimAdminButton');
+const closeSettingsButton = document.getElementById('closeSettingsButton');
 
 let isTyping = false;
 let typingTimeout = null;
 let username = '';
 let currentUserRef = null;
 let isAuthorized = false;
+let isAdmin = false;
 
 const restrictedUsernames = {
-  'ceo': '2009',
+  'ceo': { pin: '2009', logo: 'Protection.png' },
   'founder': '2009',
   'co-founder': '2009'
 };
+
+function createCEOLogo() {
+  const ceoLogo = document.createElement('img');
+  ceoLogo.src = 'Protection.png';
+  ceoLogo.alt = 'CEO';
+  ceoLogo.classList.add('ceo-logo');
+  ceoLogo.style.width = '20px';
+  ceoLogo.style.height = '20px';
+  ceoLogo.style.marginLeft = '5px';
+  ceoLogo.style.verticalAlign = 'middle';
+  ceoLogo.title = 'Official CEO';
+  ceoLogo.addEventListener('click', () => {
+    alert('Official CEO');
+  });
+  return ceoLogo;
+}
 
 messagesRef.on('child_added', (snapshot) => {
   const message = snapshot.val();
@@ -56,6 +79,18 @@ messagesRef.on('child_added', (snapshot) => {
       onlineStatusSpan.classList.remove('online');
       onlineStatusSpan.classList.add('offline');
     }
+
+    if (userData && userData.isAdmin) {
+      const adminIcon = document.createElement('img');
+      adminIcon.src = 'https://cdn-icons-png.flaticon.com/512/5509/5509636.png';
+      adminIcon.alt = 'Admin';
+      adminIcon.classList.add('admin-icon');
+      usernameSpan.appendChild(adminIcon);
+    }
+
+    if (message.username.toLowerCase() === 'ceo' && !usernameSpan.querySelector('.ceo-logo')) {
+      usernameSpan.appendChild(createCEOLogo());
+    }
   });
 
   const messageTextSpan = document.createElement('span');
@@ -75,14 +110,21 @@ messagesRef.on('child_added', (snapshot) => {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
-sendButton.addEventListener('click', () => {
+sendButton.addEventListener('click', sendMessageHandler);
+messageInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    sendMessageHandler();
+  }
+});
+
+function sendMessageHandler() {
   const messageText = messageInput.value.trim();
   const usernameText = usernameInput.value.trim().toLowerCase();
 
   if (messageText && usernameText) {
     if (restrictedUsernames[usernameText] && !isAuthorized) {
       const pin = prompt(`Please enter the PIN for "${usernameText}":`, '');
-      if (pin === restrictedUsernames[usernameText]) {
+      if (pin === (typeof restrictedUsernames[usernameText] === 'object' ? restrictedUsernames[usernameText].pin : restrictedUsernames[usernameText])) {
         isAuthorized = true;
         sendMessage(messageText, usernameText);
       } else {
@@ -92,7 +134,7 @@ sendButton.addEventListener('click', () => {
       sendMessage(messageText, usernameText);
     }
   }
-});
+}
 
 function sendMessage(text, username) {
   messagesRef.push({ text: text, username: username });
@@ -135,7 +177,7 @@ usernameInput.addEventListener('input', () => {
   if (usernameText && usernameText !== username) {
     if (restrictedUsernames[usernameText] && !isAuthorized) {
       const pin = prompt(`Please enter the PIN for "${usernameText}":`, '');
-      if (pin === restrictedUsernames[usernameText]) {
+      if (pin === (typeof restrictedUsernames[usernameText] === 'object' ? restrictedUsernames[usernameText].pin : restrictedUsernames[usernameText])) {
         setUsername(usernameText);
         isAuthorized = true;
       } else {
@@ -179,4 +221,44 @@ themeButtons.forEach(button => {
     document.body.className = theme !== 'default' ? `theme-${theme}` : '';
     themeSelectionPage.style.display = 'none';
   });
+});
+
+settingsButton.addEventListener('click', () => {
+  settingsPanel.classList.toggle('open');
+});
+
+closeSettingsButton.addEventListener('click', () => {
+  settingsPanel.classList.remove('open');
+});
+
+groupDescription.addEventListener('input', () => {
+  groupDescriptionRef.set(groupDescription.value);
+});
+
+claimAdminButton.addEventListener('click', () => {
+  if (!isAdmin) {
+    isAdmin = true;
+    updateAdminStatus(username, true);
+  }
+});
+
+function updateAdminStatus(username, isAdmin) {
+  usersRef.child(username).update({ isAdmin: isAdmin });
+  if (isAdmin) {
+    const adminIcon = document.createElement('img');
+    adminIcon.src = 'https://cdn-icons-png.flaticon.com/512/5509/5509636.png';
+    adminIcon.alt = 'Admin';
+    adminIcon.classList.add('admin-icon');
+    const userMessages = document.querySelectorAll(`.message .username`);
+    userMessages.forEach(usernameElement => {
+      if (usernameElement.textContent.trim() === username) {
+        usernameElement.appendChild(adminIcon.cloneNode(true));
+      }
+    });
+  }
+}
+
+groupDescriptionRef.on('value', (snapshot) => {
+  const description = snapshot.val();
+  groupDescription.value = description || '';
 });
