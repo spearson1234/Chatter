@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iMessage Style Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">
+      <h2>iMessage Chat</h2>
+      <button id="customThemeButton">Custom Themes</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input">
+      <input type="text" id="messageInput" placeholder="Type your message...">
+      <div class="input-group">
+        <input type="text" id="usernameInput" placeholder="Enter your username">
+        <button id="sendButton">Send</button>
+      </div>
+      <div class="typing-alert" id="typingAlert"></div>
+    </div>
+  </div>
+
+  <div id="themeSelectionPage" class="theme-selection-page" style="display: none;">
+    <h2>Choose a Theme</h2>
+    <button class="theme-button" data-theme="pink-blue">Pink and Light Blue</button>
+    <button class="theme-button" data-theme="red-yellow">Red and Yellow</button>
+    <button class="theme-button" data-theme="default">Default</button>
+    <button id="closeThemeButton">Close</button>
+  </div>
+
+  <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
+  <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+  <!-- Add Firebase products that you want to use -->
+  <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
+
+  <script src="app.js"></script>
+  <script src="preventInspection.js"></script>
+</body>
+</html>
