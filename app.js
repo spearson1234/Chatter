@@ -7,7 +7,6 @@ const firebaseConfig = {
   messagingSenderId: "618695037030",
   appId: "1:618695037030:web:fb63e51d8de6d058a29da7"
 };
-
 firebase.initializeApp(firebaseConfig);
 
 const database = firebase.database();
@@ -36,8 +35,15 @@ let currentUserRef = null;
 let replyingTo = null;
 let userMessageCount = 0;
 let notificationsEnabled = false;
+let isAuthorized = false;
 
-// Stats object
+const restrictedUsernames = {
+  'ceo': { pin: '2009', logo: 'Ceo.png' },
+  'founder': '2009',
+  'co-founder': '2009',
+  'dan': { pin: '5623', logo: 'Mod.png' }
+};
+
 const stats = {
   totalMessages: 0,
   userMessageCounts: {},
@@ -73,6 +79,31 @@ const stats = {
   }
 };
 
+function createUserLogo(username) {
+  const userInfo = restrictedUsernames[username.toLowerCase()];
+  if (!userInfo || !userInfo.logo) return null;
+
+  const logo = document.createElement('img');
+  logo.src = userInfo.logo;
+  logo.alt = username;
+  logo.classList.add('user-logo');
+  logo.style.width = '20px';
+  logo.style.height = '20px';
+  logo.style.marginLeft = '5px';
+  logo.style.verticalAlign = 'middle';
+  
+  if (username.toLowerCase() === 'ceo') {
+    logo.title = 'Official CEO';
+  } else {
+    logo.title = 'Official Mod';
+  }
+
+  logo.addEventListener('click', () => {
+    alert(logo.title);
+  });
+  return logo;
+}
+
 function createMessageElement(message) {
   const messageElement = document.createElement('div');
   messageElement.classList.add('message');
@@ -82,19 +113,23 @@ function createMessageElement(message) {
   usernameSpan.classList.add('username');
   usernameSpan.textContent = `${message.username}`;
 
-  if (message.hasBadge) {
-    const badgeImg = document.createElement('img');
-    badgeImg.src = 'path/to/badge/image.png';
-    badgeImg.alt = 'Active User Badge';
-    badgeImg.classList.add('user-badge');
-    usernameSpan.appendChild(badgeImg);
+  const userLogoSpan = document.createElement('span');
+  userLogoSpan.classList.add('user-logo-container');
+
+  if (restrictedUsernames[message.username.toLowerCase()]) {
+    const logo = createUserLogo(message.username);
+    if (logo) userLogoSpan.appendChild(logo);
   }
 
   const onlineStatusSpan = document.createElement('span');
   onlineStatusSpan.classList.add('online-status');
 
   const messageTextSpan = document.createElement('span');
-  messageTextSpan.textContent = `: ${message.text}`;
+  if (message.pingEveryone) {
+    messageTextSpan.innerHTML = `: ${message.text.replace('@everyone', '<strong>@everyone</strong>')}`;
+  } else {
+    messageTextSpan.textContent = `: ${message.text}`;
+  }
 
   const replyArrow = document.createElement('span');
   replyArrow.classList.add('reply-arrow');
@@ -106,6 +141,7 @@ function createMessageElement(message) {
   });
 
   messageElement.appendChild(usernameSpan);
+  messageElement.appendChild(userLogoSpan);
   messageElement.appendChild(onlineStatusSpan);
   messageElement.appendChild(messageTextSpan);
   messageElement.appendChild(replyArrow);
@@ -165,15 +201,29 @@ function updateProgressBar() {
 }
 
 function showNotification(title, message) {
-  if (notificationsEnabled && 'Notification' in window) {
-    if (Notification.permission === 'granted') {
-      new Notification(title, { body: message });
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          new Notification(title, { body: message });
-        }
+  if (notificationsEnabled) {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body: message });
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            new Notification(title, { body: message });
+          }
+        });
+      }
+    } 
+    else if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        registration.showNotification(title, {
+          body: message,
+          icon: '/path/to/icon.png',
+          vibrate: [200, 100, 200]
+        });
       });
+    }
+    else {
+      alert(`${title}: ${message}`);
     }
   }
 }
@@ -190,15 +240,34 @@ function sendMessageHandler() {
   const usernameText = usernameInput.value.trim().toLowerCase();
 
   if (messageText && usernameText) {
-    sendMessage(messageText, usernameText);
+    if (restrictedUsernames[usernameText] && !isAuthorized) {
+      const pin = prompt(`Please enter the PIN for "${usernameText}":`, '');
+      if (pin === (typeof restrictedUsernames[usernameText] === 'object' ? restrictedUsernames[usernameText].pin : restrictedUsernames[usernameText])) {
+        isAuthorized = true;
+        sendMessage(messageText, usernameText);
+      } else {
+        alert('Incorrect PIN. Access denied.');
+      }
+    } else {
+      sendMessage(messageText, usernameText);
+    }
   }
 }
 
 function sendMessage(text, username) {
+  const hasBadge = restrictedUsernames[username.toLowerCase()];
+  const containsEveryone = text.includes('@everyone');
+
+  if (containsEveryone && !hasBadge) {
+    alert('Only users with a badge can use @everyone.');
+    return;
+  }
+
   const message = {
     text: text,
     username: username,
     timestamp: firebase.database.ServerValue.TIMESTAMP,
+    pingEveryone: containsEveryone && hasBadge
   };
 
   if (replyingTo) {
@@ -210,29 +279,66 @@ function sendMessage(text, username) {
 
   messagesRef.push(message);
   messageInput.value = '';
+  isTyping = false;
+  typingAlert.textContent = '';
   updateOnlineStatus(username, true);
+
+  if (message.pingEveryone) {
+    notifyEveryone(username);
+  }
 
   replyingTo = null;
   messageInput.placeholder = "Type your message...";
 }
 
-function updateOnlineStatus(username, isOnline) {
-  if (currentUserRef) {
-    currentUserRef.update({ online: isOnline });
-  }
-  stats.updateOnlineStats(username, isOnline);
+function notifyEveryone(senderUsername) {
+  usersRef.once('value', (snapshot) => {
+    snapshot.forEach((childSnapshot) => {
+      const userId = childSnapshot.key;
+      if (userId !== senderUsername) {
+        console.log(`Notifying user ${userId} of @everyone ping from ${senderUsername}`);
+      }
+    });
+  });
 }
+
+messageInput.addEventListener('input', () => {
+  const usernameText = usernameInput.value.trim();
+
+  if (usernameText) {
+    isTyping = true;
+    typingAlert.textContent = `${usernameText} is typing...`;
+
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      isTyping = false;
+      typingAlert.textContent = '';
+    }, 2000);
+  }
+});
 
 usernameInput.addEventListener('input', () => {
   clearTimeout(usernameInputTimeout);
   usernameInputTimeout = setTimeout(() => {
     const usernameText = usernameInput.value.trim().toLowerCase();
+
     if (usernameText && usernameText !== username) {
-      setUsername(usernameText);
+      if (restrictedUsernames[usernameText] && !isAuthorized) {
+        const pin = prompt(`Please enter the PIN for "${usernameText}":`, '');
+        if (pin === (typeof restrictedUsernames[usernameText] === 'object' ? restrictedUsernames[usernameText].pin : restrictedUsernames[usernameText])) {
+          setUsername(usernameText);
+          isAuthorized = true;
+        } else {
+          alert('Incorrect PIN. Access denied.');
+        }
+      } else {
+        setUsername(usernameText);
+      }
     } else if (!usernameText && currentUserRef) {
       currentUserRef.set(null);
       currentUserRef = null;
       username = '';
+      isAuthorized = false;
       stats.updateOnlineStats(username, false);
     }
   }, 500);
@@ -246,6 +352,13 @@ function setUsername(newUsername) {
   currentUserRef = usersRef.child(username);
   currentUserRef.onDisconnect().update({ online: false });
   updateOnlineStatus(username, true);
+}
+
+function updateOnlineStatus(username, isOnline) {
+  if (currentUserRef) {
+    currentUserRef.update({ online: isOnline });
+  }
+  stats.updateOnlineStats(username, isOnline);
 }
 
 window.addEventListener('focus', () => {
