@@ -7,6 +7,7 @@ const firebaseConfig = {
   messagingSenderId: "618695037030",
   appId: "1:618695037030:web:fb63e51d8de6d058a29da7"
 };
+
 firebase.initializeApp(firebaseConfig);
 
 const database = firebase.database();
@@ -318,3 +319,5 @@ function disableNotifications() {
 
 // Initialize stats display
 stats.displayStats();
+
+
