@@ -1,4 +1,4 @@
-// Initialize Firebase
+// Firebase configuration and initialization
 const firebaseConfig = {
   authDomain: "chat-34ed7.firebaseapp.com",
   databaseURL: "https://chat-34ed7-default-rtdb.firebaseio.com",
@@ -12,8 +12,8 @@ firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const messagesRef = database.ref('messages');
 const usersRef = database.ref('users');
-const groupDescriptionRef = database.ref('groupDescription');
 
+// DOM elements
 const chatMessages = document.getElementById('chatMessages');
 const messageInput = document.getElementById('messageInput');
 const usernameInput = document.getElementById('usernameInput');
@@ -25,71 +25,122 @@ const closeThemeButton = document.getElementById('closeThemeButton');
 const themeButtons = document.querySelectorAll('.theme-button');
 const settingsButton = document.getElementById('settingsButton');
 const settingsPanel = document.getElementById('settingsPanel');
-const groupDescription = document.getElementById('groupDescription');
-const claimAdminButton = document.getElementById('claimAdminButton');
 const closeSettingsButton = document.getElementById('closeSettingsButton');
+const messageProgressBar = document.getElementById('messageProgressBar');
+const notificationToggle = document.getElementById('notificationToggle');
 
-let isTyping = false;
-let typingTimeout = null;
+// Global variables
 let username = '';
 let currentUserRef = null;
-let isAuthorized = false;
-let isAdmin = false;
+let replyingTo = null;
+let userMessageCount = 0;
+let notificationsEnabled = false;
 
-const restrictedUsernames = {
-  'ceo': { pin: '2009', logo: 'Ceo.png' },
-  'founder': '2009',
-  'co-founder': '2009',
-  'dan': { pin: '5623', logo: 'Mod.png' }
+// Stats object
+const stats = {
+  totalMessages: 0,
+  userMessageCounts: {},
+  onlineUsers: new Set(),
+  updateMessageStats: function(username) {
+    this.totalMessages++;
+    this.userMessageCounts[username] = (this.userMessageCounts[username] || 0) + 1;
+    this.displayStats();
+  },
+  updateOnlineStats: function(username, isOnline) {
+    if (isOnline) {
+      this.onlineUsers.add(username);
+    } else {
+      this.onlineUsers.delete(username);
+    }
+    this.displayStats();
+  },
+  displayStats: function() {
+    const statsElement = document.getElementById('statsDisplay');
+    if (statsElement) {
+      statsElement.innerHTML = `
+        <h4>Chat Statistics</h4>
+        <p>Total Messages: ${this.totalMessages}</p>
+        <p>Active Users: ${this.onlineUsers.size}</p>
+        <h5>Messages per User:</h5>
+        <ul>
+          ${Object.entries(this.userMessageCounts)
+            .map(([user, count]) => `<li>${user}: ${count}</li>`)
+            .join('')}
+        </ul>
+      `;
+    }
+  }
 };
 
-function createUserLogo(username) {
-  const userInfo = restrictedUsernames[username.toLowerCase()];
-  if (!userInfo || !userInfo.logo) return null;
-
-  const logo = document.createElement('img');
-  logo.src = userInfo.logo;
-  logo.alt = username;
-  logo.classList.add('user-logo');
-  logo.style.width = '20px';
-  logo.style.height = '20px';
-  logo.style.marginLeft = '5px';
-  logo.style.verticalAlign = 'middle';
-  
-  if (username.toLowerCase() === 'ceo') {
-    logo.title = 'Official CEO';
-  } else {
-    logo.title = 'Official Mod';
-  }
-
-  logo.addEventListener('click', () => {
-    alert(logo.title);
-  });
-  return logo;
-}
-
-messagesRef.on('child_added', (snapshot) => {
-  const message = snapshot.val();
+function createMessageElement(message) {
   const messageElement = document.createElement('div');
   messageElement.classList.add('message');
+  messageElement.dataset.id = message.id;
 
   const usernameSpan = document.createElement('span');
   usernameSpan.classList.add('username');
   usernameSpan.textContent = `${message.username}`;
 
-  const userLogoSpan = document.createElement('span');
-  userLogoSpan.classList.add('user-logo-container');
-
-  if (restrictedUsernames[message.username.toLowerCase()]) {
-    const logo = createUserLogo(message.username);
-    if (logo) userLogoSpan.appendChild(logo);
+  if (message.hasBadge) {
+    const badgeImg = document.createElement('img');
+    badgeImg.src = 'path/to/badge/image.png';
+    badgeImg.alt = 'Active User Badge';
+    badgeImg.classList.add('user-badge');
+    usernameSpan.appendChild(badgeImg);
   }
 
   const onlineStatusSpan = document.createElement('span');
   onlineStatusSpan.classList.add('online-status');
 
+  const messageTextSpan = document.createElement('span');
+  messageTextSpan.textContent = `: ${message.text}`;
+
+  const replyArrow = document.createElement('span');
+  replyArrow.classList.add('reply-arrow');
+  replyArrow.innerHTML = '↩️';
+  replyArrow.addEventListener('click', () => {
+    replyingTo = message;
+    messageInput.placeholder = `Replying to ${message.username}...`;
+    messageInput.focus();
+  });
+
+  messageElement.appendChild(usernameSpan);
+  messageElement.appendChild(onlineStatusSpan);
+  messageElement.appendChild(messageTextSpan);
+  messageElement.appendChild(replyArrow);
+
+  if (message.replyTo) {
+    messageElement.classList.add('reply');
+    const replyInfo = document.createElement('div');
+    replyInfo.classList.add('reply-info');
+    replyInfo.textContent = `Replying to ${message.replyTo.username}`;
+    messageElement.insertBefore(replyInfo, messageElement.firstChild);
+  }
+
+  return messageElement;
+}
+
+messagesRef.on('child_added', (snapshot) => {
+  const message = { ...snapshot.val(), id: snapshot.key };
+  const messageElement = createMessageElement(message);
+
+  if (message.username === username) {
+    messageElement.classList.add('outgoing');
+    userMessageCount++;
+    updateProgressBar();
+  } else {
+    messageElement.classList.add('incoming');
+    if (notificationsEnabled) {
+      showNotification(`New message from ${message.username}`, message.text);
+    }
+  }
+
+  chatMessages.appendChild(messageElement);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
   usersRef.child(message.username).on('value', (snapshot) => {
     const userData = snapshot.val();
+    const onlineStatusSpan = messageElement.querySelector('.online-status');
     if (userData && userData.online) {
       onlineStatusSpan.classList.remove('offline');
       onlineStatusSpan.classList.add('online');
@@ -97,37 +148,34 @@ messagesRef.on('child_added', (snapshot) => {
       onlineStatusSpan.classList.remove('online');
       onlineStatusSpan.classList.add('offline');
     }
-
-    if (userData && userData.isAdmin) {
-      const adminIcon = document.createElement('img');
-      adminIcon.src = 'https://cdn-icons-png.flaticon.com/512/5509/5509636.png';
-      adminIcon.alt = 'Admin';
-      adminIcon.classList.add('admin-icon');
-      usernameSpan.appendChild(adminIcon);
-    }
   });
 
-  const messageTextSpan = document.createElement('span');
-  if (message.pingEveryone) {
-    messageTextSpan.innerHTML = `: ${message.text.replace('@everyone', '<strong>@everyone</strong>')}`;
-  } else {
-    messageTextSpan.textContent = `: ${message.text}`;
-  }
-
-  messageElement.appendChild(usernameSpan);
-  messageElement.appendChild(userLogoSpan);
-  messageElement.appendChild(onlineStatusSpan);
-  messageElement.appendChild(messageTextSpan);
-
-  if (message.username === username) {
-    messageElement.classList.add('outgoing');
-  } else {
-    messageElement.classList.add('incoming');
-  }
-
-  chatMessages.appendChild(messageElement);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
+  stats.updateMessageStats(message.username);
 });
+
+function updateProgressBar() {
+  const progress = (userMessageCount / 10000) * 100;
+  messageProgressBar.style.width = `${Math.min(progress, 100)}%`;
+
+  if (userMessageCount >= 10000) {
+    showNotification('Congratulations!', 'You\'ve earned the Active User Badge!');
+    usersRef.child(username).update({ hasBadge: true });
+  }
+}
+
+function showNotification(title, message) {
+  if (notificationsEnabled && 'Notification' in window) {
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body: message });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          new Notification(title, { body: message });
+        }
+      });
+    }
+  }
+}
 
 sendButton.addEventListener('click', sendMessageHandler);
 messageInput.addEventListener('keypress', (e) => {
@@ -141,72 +189,63 @@ function sendMessageHandler() {
   const usernameText = usernameInput.value.trim().toLowerCase();
 
   if (messageText && usernameText) {
-    if (restrictedUsernames[usernameText] && !isAuthorized) {
-      const pin = prompt(`Please enter the PIN for "${usernameText}":`, '');
-      if (pin === (typeof restrictedUsernames[usernameText] === 'object' ? restrictedUsernames[usernameText].pin : restrictedUsernames[usernameText])) {
-        isAuthorized = true;
-        sendMessage(messageText, usernameText);
-      } else {
-        alert('Incorrect PIN. Access denied.');
-      }
-    } else {
-      sendMessage(messageText, usernameText);
-    }
+    sendMessage(messageText, usernameText);
   }
 }
 
 function sendMessage(text, username) {
-  const hasBadge = restrictedUsernames[username.toLowerCase()];
-  const containsEveryone = text.includes('@everyone');
-
-  if (containsEveryone && !hasBadge) {
-    alert('Only users with a badge can use @everyone.');
-    return;
-  }
-
   const message = {
     text: text,
     username: username,
     timestamp: firebase.database.ServerValue.TIMESTAMP,
-    pingEveryone: containsEveryone && hasBadge
   };
+
+  if (replyingTo) {
+    message.replyTo = {
+      id: replyingTo.id,
+      username: replyingTo.username
+    };
+  }
 
   messagesRef.push(message);
   messageInput.value = '';
-  isTyping = false;
-  typingAlert.textContent = '';
   updateOnlineStatus(username, true);
 
-  if (message.pingEveryone) {
-    notifyEveryone(username);
-  }
+  replyingTo = null;
+  messageInput.placeholder = "Type your message...";
 }
 
-function notifyEveryone(senderUsername) {
-  usersRef.once('value', (snapshot) => {
-    snapshot.forEach((childSnapshot) => {
-      const userId = childSnapshot.key;
-      if (userId !== senderUsername) {
-        console.log(`Notifying user ${userId} of @everyone ping from ${senderUsername}`);
-      }
-    });
-  });
+function updateOnlineStatus(username, isOnline) {
+  if (currentUserRef) {
+    currentUserRef.update({ online: isOnline });
+  }
+  stats.updateOnlineStats(username, isOnline);
 }
 
-messageInput.addEventListener('input', () => {
-  const usernameText = usernameInput.value.trim();
-
-  if (usernameText) {
-    isTyping = true;
-    typingAlert.textContent = `${usernameText} is typing...`;
-
-    clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => {
-      isTyping = false;
-      typingAlert.textContent = '';
-    }, 2000);
-  }
+usernameInput.addEventListener('input', () => {
+  clearTimeout(usernameInputTimeout);
+  usernameInputTimeout = setTimeout(() => {
+    const usernameText = usernameInput.value.trim().toLowerCase();
+    if (usernameText && usernameText !== username) {
+      setUsername(usernameText);
+    } else if (!usernameText && currentUserRef) {
+      currentUserRef.set(null);
+      currentUserRef = null;
+      username = '';
+      stats.updateOnlineStats(username, false);
+    }
+  }, 500);
 });
+
+function setUsername(newUsername) {
+  if (username) {
+    stats.updateOnlineStats(username, false);
+  }
+  username = newUsername;
+  currentUserRef = usersRef.child(username);
+  currentUserRef.onDisconnect().update({ online: false });
+  updateOnlineStatus(username, true);
+}
 
 window.addEventListener('focus', () => {
   if (currentUserRef) {
@@ -220,41 +259,11 @@ window.addEventListener('blur', () => {
   }
 });
 
-usernameInput.addEventListener('input', () => {
-  const usernameText = usernameInput.value.trim().toLowerCase();
-
-  if (usernameText && usernameText !== username) {
-    if (restrictedUsernames[usernameText] && !isAuthorized) {
-      const pin = prompt(`Please enter the PIN for "${usernameText}":`, '');
-      if (pin === (typeof restrictedUsernames[usernameText] === 'object' ? restrictedUsernames[usernameText].pin : restrictedUsernames[usernameText])) {
-        setUsername(usernameText);
-        isAuthorized = true;
-      } else {
-        alert('Incorrect PIN. Access denied.');
-      }
-    } else {
-      setUsername(usernameText);
-    }
-  } else if (!usernameText && currentUserRef) {
-    currentUserRef.set(null);
-    currentUserRef = null;
-    username = '';
-    isAuthorized = false;
+window.addEventListener('beforeunload', () => {
+  if (username) {
+    updateOnlineStatus(username, false);
   }
 });
-
-function setUsername(newUsername) {
-  username = newUsername;
-  currentUserRef = usersRef.child(username);
-  currentUserRef.onDisconnect().update({ online: false });
-  updateOnlineStatus(username, true);
-}
-
-function updateOnlineStatus(username, isOnline) {
-  if (currentUserRef) {
-    currentUserRef.update({ online: isOnline });
-  }
-}
 
 customThemeButton.addEventListener('click', () => {
   themeSelectionPage.style.display = 'flex';
@@ -274,40 +283,39 @@ themeButtons.forEach(button => {
 
 settingsButton.addEventListener('click', () => {
   settingsPanel.classList.toggle('open');
+  stats.displayStats();
 });
 
 closeSettingsButton.addEventListener('click', () => {
   settingsPanel.classList.remove('open');
 });
 
-groupDescription.addEventListener('input', () => {
-  groupDescriptionRef.set(groupDescription.value);
-});
-
-claimAdminButton.addEventListener('click', () => {
-  if (!isAdmin) {
-    isAdmin = true;
-    updateAdminStatus(username, true);
+notificationToggle.addEventListener('click', () => {
+  if (!notificationsEnabled) {
+    enableNotifications();
+  } else {
+    disableNotifications();
   }
 });
 
-function updateAdminStatus(username, isAdmin) {
-  usersRef.child(username).update({ isAdmin: isAdmin });
-  if (isAdmin) {
-    const adminIcon = document.createElement('img');
-    adminIcon.src = 'https://cdn-icons-png.flaticon.com/512/5509/5509636.png';
-    adminIcon.alt = 'Admin';
-    adminIcon.classList.add('admin-icon');
-    const userMessages = document.querySelectorAll(`.message .username`);
-    userMessages.forEach(usernameElement => {
-      if (usernameElement.textContent.trim() === username) {
-        usernameElement.appendChild(adminIcon.cloneNode(true));
-      }
-    });
-  }
+function enableNotifications() {
+  Notification.requestPermission().then(function (permission) {
+    if (permission === 'granted') {
+      notificationsEnabled = true;
+      notificationToggle.textContent = 'Turn off Notifications';
+      notificationToggle.classList.add('active');
+      showNotification('Notifications Enabled', 'You will now receive notifications for new messages.');
+    }
+  });
 }
 
-groupDescriptionRef.on('value', (snapshot) => {
-  const description = snapshot.val();
-  groupDescription.value = description || '';
-});
+function disableNotifications() {
+  notificationsEnabled = false;
+  notificationToggle.textContent = 'Turn on Notifications';
+  notificationToggle.classList.remove('active');
+  showNotification('Notifications Disabled', 'You will no longer receive notifications for new messages.');
+}
+
+// Initialize stats display
+stats.displayStats();
+
