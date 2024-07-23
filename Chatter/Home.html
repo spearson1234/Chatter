@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Modern Chat App</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background-color: #ffffff;
+            padding: 15px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-info {
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .user-info:hover .dropdown { display: block; }
+        .dropdown a {
+            display: block;
+            padding: 10px 15px;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+        .dropdown a:hover { background-color: #f1f1f1; }
+        #chat-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        #messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .message {
+            max-width: 70%;
+            margin-bottom: 10px;
+            padding: 10px 15px;
+            border-radius: 18px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .message.received { background-color: #e9e9eb; align-self: flex-start; }
+        .message.sent { background-color: #0084ff; color: #fff; align-self: flex-end; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #message-form {
+            display: flex;
+            padding: 15px;
+            background-color: #f0f2f5;
+        }
+        #message-input {
+            flex-grow: 1;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 20px;
+            font-size: 16px;
+            outline: none;
+        }
+        #message-form button {
+            background-color: #0084ff;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            margin-left: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #message-form button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Chat App</h1>
+        <div class="user-info">
+            <span id="user-email"></span>
+            <div class="dropdown">
+                <a href="#" id="change-username">Change Username</a>
+                <a href="#" id="logout">Log out</a>
+            </div>
+        </div>
+    </header>
+
+    <div id="chat-container">
+        <div id="messages"></div>
+        <form id="message-form">
+            <input type="text" id="message-input" placeholder="Type a message...">
+            <button type="submit">➤</button>
+        </form>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.14.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.14.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.14.0/firebase-database-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAHSW4ettEHj3Y562zYSI_n0Z1OwFaGsgw",
+            authDomain: "login-71866.firebaseapp.com",
+            projectId: "login-71866",
+            storageBucket: "login-71866.appspot.com",
+            messagingSenderId: "434042354282",
+            appId: "1:434042354282:web:fbc98eaefe2ef6513a2813"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        const auth = firebase.auth();
+        const database = firebase.database();
+        const userEmailElement = document.getElementById('user-email');
+        const logoutButton = document.getElementById('logout');
+        const changeUsernameButton = document.getElementById('change-username');
+        const messagesDiv = document.getElementById('messages');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+
+        let currentUser = null;
+
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                currentUser = user;
+                userEmailElement.textContent = user.displayName || user.email;
+                loadMessages();
+            } else {
+                window.location.href = 'Index.html';
+            }
+        });
+
+        logoutButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            auth.signOut().then(() => {
+                window.location.href = 'Index.html';
+            }).catch((error) => {
+                console.error('Error signing out:', error);
+            });
+        });
+
+        changeUsernameButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            const newUsername = prompt("Enter new username:");
+            if (newUsername) {
+                currentUser.updateProfile({
+                    displayName: newUsername
+                }).then(() => {
+                    userEmailElement.textContent = newUsername;
+                }).catch((error) => {
+                    console.error('Error updating username:', error);
+                });
+            }
+        });
+
+        messageForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const message = messageInput.value.trim();
+            if (message) {
+                database.ref('messages').push({
+                    user: currentUser.displayName || currentUser.email,
+                    text: message,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    isAdmin: currentUser.email === 'admin@gmail.com' // Replace with your admin email
+                });
+                messageInput.value = '';
+            }
+        });
+
+        function loadMessages() {
+            database.ref('messages').on('child_added', (snapshot) => {
+                const message = snapshot.val();
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message');
+                messageElement.classList.add(message.user === (currentUser.displayName || currentUser.email) ? 'sent' : 'received');
+                
+                const userSpan = document.createElement('span');
+                userSpan.textContent = message.user;
+                
+                if (message.isAdmin) {
+                    userSpan.textContent += '🛠️'; // Adding hammer and wrench emoji
+                }
+                
+                messageElement.appendChild(userSpan);
+                messageElement.appendChild(document.createTextNode(`: ${message.text}`));
+                
+                messagesDiv.appendChild(messageElement);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            });
+        }
+    </script>
+</body>
+</html>
