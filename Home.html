@@ -158,14 +158,14 @@
                 userEmailElement.textContent = user.displayName || user.email;
                 loadMessages();
             } else {
-                window.location.href = 'index.html';
+                window.location.href = 'Index.html';
             }
         });
 
         logoutButton.addEventListener('click', (e) => {
             e.preventDefault();
             auth.signOut().then(() => {
-                window.location.href = 'index.html';
+                window.location.href = 'Index.html';
             }).catch((error) => {
                 console.error('Error signing out:', error);
             });
@@ -223,3 +223,4 @@
     </script>
 </body>
 </html>
+
