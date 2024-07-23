@@ -42,7 +42,7 @@ authForm.addEventListener('submit', async (event) => {
                 userCredential = await auth.signInWithEmailAndPassword(email, password);
             }
             // Redirect to the game page after successful sign up or login
-            window.location.href = 'game.html';
+            window.location.href = 'Home.html';
         } else {
             messageElement.textContent = 'Email and password are required.';
             messageElement.style.color = 'red';
